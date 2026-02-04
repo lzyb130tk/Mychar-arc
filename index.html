@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Character Archive</title>
+    
+    <!-- Inline Manifest for Android PWA -->
+    <link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiQ2hhcmFjdGVyIEFyY2hpdmUiLCJzaG9ydF9uYW1lIjoiQ2hhckFyYyIsInN0YXJ0X3VybCI6Ii8iLCJkaXNwbGF5Ijoic3RhbmRhbG9uZSIsImJhY2tncm91bmRfY29sb3IiOiIjZjJmNGY2IiwidGhlbWVfY29sb3IiOiIjZmYzYjMwIn0=">
+    <link rel="apple-touch-icon" href="https://via.placeholder.com/180">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+    <style>
+        /* === 1. 视觉系统：陶瓷/瑞士平面风格 === */
+        :root {
+            --bg-color: #f2f4f6;
+            --white: #ffffff;
+            --text-main: #1d1d1f;
+            --text-sub: #86868b;
+            --accent: #ff3b30; /* 瑞士红 */
+            --gold: #d4af37;
+            
+            /* 高级软阴影系统 */
+            --shadow-card: 10px 10px 30px rgba(174, 174, 192, 0.4), -10px -10px 30px #ffffff;
+            --shadow-float: 0 10px 40px rgba(0,0,0,0.1);
+            --shadow-inner: inset 2px 2px 5px rgba(174, 174, 192, 0.2), inset -2px -2px 5px #ffffff;
+            
+            --safe-top: env(safe-area-inset-top);
+            --safe-bottom: env(safe-area-inset-bottom);
+            --header-h: 70px;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; user-select: none; }
+        
+        body {
+            margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Arial", sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            height: 100dvh; 
+            display: flex; 
+            flex-direction: column; 
+            overflow: hidden;
+            position: fixed;
+            width: 100%;
+            top: 0;
+            left: 0;
+        }
+
+        /* 背景装饰 */
+        .bg-deco {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;
+            background: radial-gradient(circle at 50% 0%, #ffffff 0%, var(--bg-color) 100%);
+        }
+
+        /* === 2. 顶部 Header === */
+        .header {
+            padding: calc(10px + var(--safe-top)) 24px 10px;
+            height: calc(var(--header-h) + var(--safe-top));
+            display: flex; justify-content: space-between; align-items: flex-end;
+            z-index: 50; flex-shrink: 0;
+            background: linear-gradient(to bottom, rgba(242,244,246,0.95), rgba(242,244,246,0));
+        }
+        
+        .header-content h1 {
+            font-size: 28px; font-weight: 800; margin: 0; line-height: 1; letter-spacing: -0.5px;
+        }
+        .header-content span {
+            font-size: 10px; font-weight: 700; color: var(--text-sub); letter-spacing: 2px; text-transform: uppercase;
+        }
+
+        .header-actions { display: flex; gap: 16px; align-items: center; padding-bottom: 2px; }
+        .icon-btn {
+            background: none; border: none; font-size: 18px; color: var(--text-main);
+            cursor: pointer; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+            border-radius: 50%; transition: background 0.2s;
+        }
+        .icon-btn:active { background: rgba(0,0,0,0.05); }
+        .icon-btn.active { color: var(--accent); }
+
+        /* === 3. 主视图容器 === */
+        .main-container {
+            flex: 1; 
+            position: relative; 
+            overflow: hidden;
+            min-height: 0; /* 关键：允许flex子项收缩 */
+        }
+        .view-section {
+            position: absolute; 
+            inset: 0;
+            padding: 10px 24px;
+            padding-bottom: calc(80px + var(--safe-bottom)); /* 底部留白给固定导航栏 */
+            overflow-y: auto; 
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
+            display: none; 
+            opacity: 0; 
+            transition: opacity 0.3s ease;
+            overscroll-behavior: contain;
+        }
+        .view-section.active { display: block; opacity: 1; }
+        
+        /* 隐藏滚动条 */
+        .view-section::-webkit-scrollbar { display: none; }
+
+        /* === 4. 角色展示模式 === */
+        
+        /* 内容包装器 */
+        .content-wrapper {
+            display: grid;
+            gap: 16px;
+        }
+
+        /* A. 画廊模式 (Gallery - 横向单张 - 精致版) */
+        .mode-gallery {
+            padding: 0;
+            overflow: visible;
+        }
+        .mode-gallery .content-wrapper {
+            display: flex;
+            flex-direction: row;
+            gap: 25px;
+            overflow-x: auto;
+            overflow-y: visible;
+            scroll-snap-type: x mandatory;
+            padding: 40px 30px;
+            padding-bottom: calc(90px + var(--safe-bottom));
+            min-height: 100%;
+            align-items: center;
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+            -webkit-overflow-scrolling: touch;
+        }
+        .mode-gallery .content-wrapper::-webkit-scrollbar { display: none; }
+        .mode-gallery .char-card {
+            min-width: 300px;
+            width: 80vw;
+            max-width: 360px;
+            height: 60vh;
+            max-height: 520px;
+            scroll-snap-align: center;
+            flex-shrink: 0;
+            flex-direction: column;
+            border-radius: 36px;
+            box-shadow: 15px 15px 40px #bebebe, -15px -15px 40px #ffffff;
+            will-change: transform;
+            transform: translateZ(0);
+        }
+        .mode-gallery .card-img-box { 
+            height: 62%; 
+            background: #f5f5f7;
+        }
+        .mode-gallery .card-info { 
+            flex: 1; 
+            min-height: 0; 
+            padding: 22px;
+        }
+        .mode-gallery .char-name {
+            font-size: 26px;
+            letter-spacing: -0.5px;
+            margin-bottom: 4px;
+        }
+        .mode-gallery .char-class {
+            display: block;
+            font-size: 11px;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+        .mode-gallery .char-desc {
+            font-size: 13px;
+            color: var(--text-sub);
+            line-height: 1.4;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+        /* 稀有度标签 */
+        .mode-gallery .rarity-tag {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 6px 14px;
+            border-radius: 16px;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            color: var(--text-main);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            z-index: 2;
+        }
+        .mode-gallery .rarity-tag.ssr { color: var(--gold); border: 1px solid rgba(212, 175, 55, 0.3); }
+        .mode-gallery .rarity-tag.ur { color: #9c27b0; border: 1px solid rgba(156, 39, 176, 0.3); }
+        .mode-gallery .rarity-tag.sr { color: #2196f3; border: 1px solid rgba(33, 150, 243, 0.3); }
+        .mode-gallery .rarity-tag.r { color: #4caf50; border: 1px solid rgba(76, 175, 80, 0.3); }
+        .mode-gallery .char-tag {
+            font-size: 11px;
+            padding: 6px 14px;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.95);
+            color: var(--text-main);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 2;
+        }
+        .mode-gallery .deco-line {
+            width: 30px;
+            display: block;
+        }
+
+        /* B. 网格模式 (Grid - 两列) */
+        .mode-grid .content-wrapper {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+        }
+        .mode-grid .char-card {
+            aspect-ratio: 3/5;
+            flex-direction: column;
+        }
+        .mode-grid .card-img-box { height: 60%; flex-shrink: 0; }
+        .mode-grid .card-info { 
+            padding: 12px; 
+            flex: 1;
+            min-height: 0;
+        }
+        .mode-grid .char-name { font-size: 16px; }
+        .mode-grid .char-class { display: none; }
+        .mode-grid .char-desc { display: none; }
+        .mode-grid .rarity-tag { 
+            padding: 4px 10px; 
+            font-size: 9px; 
+            top: 10px; 
+            left: 10px; 
+        }
+
+        /* C. 列表模式 (List) */
+        .mode-list .content-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .mode-list .char-card {
+            height: 80px;
+            flex-direction: row;
+            align-items: center;
+            padding: 8px;
+        }
+        .mode-list .card-img-box {
+            width: 64px;
+            height: 64px;
+            min-width: 64px;
+            border-radius: 12px;
+            margin-right: 12px;
+        }
+        .mode-list .card-info {
+            padding: 0;
+            justify-content: center;
+            flex: 1;
+            min-width: 0; /* 允许文本截断 */
+        }
+        .mode-list .deco-line { display: none; }
+        .mode-list .card-actions { display: none; } /* 列表模式隐藏操作按钮 */
+        .mode-list .char-tag { display: none; } /* 列表模式隐藏标签 */
+        .mode-list .rarity-tag { display: none; }
+        .mode-list .char-class { display: none; }
+        .mode-list .char-desc { display: none; }
+
+        /* === 5. 卡片通用样式 (The Ceramic Card) === */
+        .char-card {
+            background: var(--white);
+            border-radius: 24px;
+            box-shadow: var(--shadow-card);
+            position: relative; 
+            overflow: hidden;
+            display: flex;
+            transition: transform 0.2s, border 0.2s;
+            cursor: pointer;
+        }
+        .char-card:active { transform: scale(0.98); }
+        .char-card.selected { 
+            border: 3px solid var(--accent); 
+            box-shadow: 0 0 20px rgba(255, 59, 48, 0.3);
+        }
+
+        .card-img-box {
+            width: 100%; 
+            background: #eaeaec; 
+            position: relative; 
+            overflow: hidden;
+        }
+        .card-img { width: 100%; height: 100%; object-fit: cover; }
+        
+        .card-info {
+            flex: 1; 
+            padding: 20px; 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: space-between;
+            background: var(--white);
+            overflow: hidden;
+        }
+        
+        /* Tag 标签样式 - 定位在图片左上角 */
+        .char-tag {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            z-index: 5;
+            display: inline-block;
+            font-size: 10px;
+            font-weight: 800;
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.95);
+            padding: 5px 12px;
+            border-radius: 16px;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: calc(100% - 80px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        
+        .char-name { 
+            font-size: 20px; 
+            font-weight: 800; 
+            color: var(--text-main); 
+            margin: 0; 
+            line-height: 1.2;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .char-id-small {
+            font-size: 11px;
+            color: var(--text-sub);
+            margin-top: 4px;
+        }
+        
+        .deco-line { width: 24px; height: 3px; background: var(--text-main); margin-top: auto; border-radius: 2px; opacity: 0.2; }
+
+        /* 卡片上的快捷按钮 */
+        .card-actions {
+            position: absolute; top: 12px; right: 12px; display: flex; gap: 8px; z-index: 10;
+        }
+        .action-circle {
+            width: 32px; height: 32px; border-radius: 50%;
+            background: rgba(255,255,255,0.9); backdrop-filter: blur(4px);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px; color: var(--text-main); box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            transition: transform 0.15s, background 0.15s;
+        }
+        .action-circle:active {
+            transform: scale(0.9);
+            background: rgba(255,255,255,1);
+        }
+        .action-circle.fav.active { color: var(--accent); }
+
+        /* 多选遮罩 */
+        .select-overlay {
+            position: absolute; inset: 0; background: rgba(255,255,255,0.7);
+            z-index: 20; display: none; align-items: center; justify-content: center;
+            pointer-events: none;
+        }
+        .char-card.selected .select-overlay { display: flex; }
+        .check-circle { font-size: 40px; color: var(--accent); filter: drop-shadow(0 4px 10px rgba(255,59,48,0.3)); }
+
+        /* 多选工具栏 */
+        .multi-toolbar {
+            display: none;
+            gap: 10px;
+            margin-bottom: 16px;
+            padding: 12px;
+            background: var(--white);
+            border-radius: 16px;
+            box-shadow: var(--shadow-card);
+        }
+        .multi-toolbar.show { display: flex; }
+
+        /* === 6. 底部导航栏 (Fixed Bottom Nav with Blur) === */
+        .bottom-nav {
+            position: fixed; 
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-top: 1px solid rgba(0, 0, 0, 0.05);
+            padding-top: 10px;
+            padding-bottom: calc(var(--safe-bottom) + 5px);
+            display: flex;
+            justify-content: space-around;
+            align-items: flex-start;
+        }
+        .nav-item {
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center;
+            gap: 4px;
+            border: none; 
+            background: none; 
+            color: #b0b0b5; 
+            cursor: pointer;
+            padding: 0 20px;
+            min-width: 64px;
+        }
+        .nav-item svg {
+            width: 24px;
+            height: 24px;
+            fill: #b0b0b5;
+            transition: fill 0.2s ease, transform 0.2s ease;
+        }
+        .nav-item.active { color: var(--text-main); }
+        .nav-item.active svg { 
+            fill: var(--accent); 
+            transform: translateY(-2px);
+        }
+        .nav-item span { font-size: 10px; font-weight: 600; letter-spacing: 0.3px; }
+
+        /* === 7. 弹窗 (Clean Modal) === */
+        .modal-mask {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.25); backdrop-filter: blur(10px);
+            z-index: 200; display: none; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s;
+            padding: 20px;
+            padding-top: calc(20px + var(--safe-top));
+            padding-bottom: calc(20px + var(--safe-bottom));
+        }
+        .modal-mask.open { opacity: 1; }
+        
+        .modal-box {
+            width: 100%; 
+            max-width: 360px;
+            max-height: 100%;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            background: var(--white); 
+            border-radius: 32px;
+            padding: 32px;
+            box-shadow: var(--shadow-float);
+            transform: scale(0.95); 
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .modal-box::-webkit-scrollbar { display: none; }
+        .modal-mask.open .modal-box { transform: scale(1); }
+
+        .modal-title { font-size: 20px; font-weight: 800; margin-bottom: 24px; text-align: center; }
+
+        .form-group { margin-bottom: 16px; position: relative; }
+        .form-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-sub);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 6px;
+            display: block;
+        }
+        .form-input {
+            width: 100%; padding: 14px 16px;
+            background: #f2f4f6; border: none; border-radius: 16px;
+            font-size: 14px; color: var(--text-main);
+            box-shadow: var(--shadow-inner);
+        }
+        .form-input:focus { background: #fff; box-shadow: 0 0 0 2px var(--accent); }
+        textarea.form-input { resize: none; height: 80px; }
+
+        /* 极简上传 */
+        .upload-circle {
+            width: 80px; height: 80px; border-radius: 50%;
+            background: #f2f4f6; margin: 0 auto 24px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; position: relative; overflow: hidden;
+            box-shadow: var(--shadow-inner);
+        }
+        .upload-circle img { width: 100%; height: 100%; object-fit: cover; display: none; }
+        .upload-circle i { font-size: 24px; color: var(--text-sub); }
+
+        .btn-primary {
+            width: 100%; padding: 16px; background: var(--text-main); color: #fff;
+            border: none; border-radius: 16px; font-weight: 700; font-size: 14px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            cursor: pointer;
+            transition: transform 0.15s;
+        }
+        .btn-primary:active { transform: scale(0.98); }
+        
+        .btn-text {
+            width: 100%; padding: 12px; background: none; border: none;
+            color: var(--text-sub); font-size: 12px; margin-top: 8px;
+            cursor: pointer;
+        }
+
+        /* 搜索条 (悬浮) */
+        .search-float {
+            position: absolute; top: 10px; left: 24px; right: 24px;
+            background: rgba(255,255,255,0.95); backdrop-filter: blur(10px);
+            padding: 10px 16px; border-radius: 16px;
+            display: none; align-items: center; gap: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            z-index: 40;
+        }
+        .search-float.show { display: flex; animation: slideDown 0.2s ease; }
+        .search-float input {
+            flex: 1; border: none; background: none; font-size: 14px; color: var(--text-main);
+        }
+        @keyframes slideDown { from { transform: translateY(-10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+        /* 设置列表 */
+        .setting-item {
+            background: var(--white); padding: 20px; border-radius: 20px;
+            margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.02);
+            cursor: pointer;
+            transition: transform 0.15s;
+        }
+        .setting-item:active { transform: scale(0.98); }
+        
+        /* Toast */
+        .toast {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.75); color: #fff; padding: 14px 28px;
+            border-radius: 50px; font-size: 14px; font-weight: 600;
+            pointer-events: none; opacity: 0; transition: opacity 0.3s; z-index: 300;
+            text-align: center;
+            max-width: 80%;
+        }
+
+        /* 空状态 */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-sub);
+        }
+        .empty-state i {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.3;
+        }
+        .empty-state p {
+            font-size: 13px;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="bg-deco"></div>
+
+    <header class="header">
+        <div class="header-content">
+            <span>MYCHAR Archive</span>
+            <h1 id="page-title">角色存档</h1>
+        </div>
+        <div class="header-actions">
+            <button class="icon-btn" id="btn-view" onclick="App.toggleViewMode()">
+                <i class="fa-solid fa-layer-group"></i>
+            </button>
+            <button class="icon-btn" onclick="App.toggleSearch()"><i class="fa-solid fa-magnifying-glass"></i></button>
+            <button class="icon-btn" id="btn-multi" onclick="App.toggleMulti()"><i class="fa-regular fa-square-check"></i></button>
+            <button class="icon-btn active" onclick="Modal.open()"><i class="fa-solid fa-plus"></i></button>
+        </div>
+    </header>
+
+    <div class="main-container">
+        
+        <div id="view-chars" class="view-section mode-grid active">
+            <div class="search-float" id="search-bar">
+                <i class="fa-solid fa-search" style="color:var(--text-sub)"></i>
+                <input type="text" placeholder="搜索角色..." oninput="App.renderList(this.value)">
+            </div>
+            
+            <div id="multi-tools" class="multi-toolbar">
+                <button class="btn-primary" style="background:var(--accent); padding:12px; flex:1;" onclick="App.deleteMulti()">
+                    <i class="fa-solid fa-trash"></i> 删除选中
+                </button>
+                <button class="btn-primary" style="background:#e0e0e0; color:#333; padding:12px; flex:1;" onclick="App.toggleMulti()">
+                    取消
+                </button>
+            </div>
+            
+            <div id="char-container" class="content-wrapper"></div>
+        </div>
+
+        <div id="view-fav" class="view-section mode-grid">
+            <div id="fav-container" class="content-wrapper"></div>
+        </div>
+
+        <div id="view-settings" class="view-section">
+            <div class="setting-item" onclick="Backup.export()">
+                <div>
+                    <div style="font-weight:700; margin-bottom:4px;">备份档案</div>
+                    <div style="font-size:11px; color:var(--text-sub);">导出 ZIP (含图片)</div>
+                </div>
+                <i class="fa-solid fa-download"></i>
+            </div>
+            <label class="setting-item">
+                <div>
+                    <div style="font-weight:700; margin-bottom:4px;">导入档案</div>
+                    <div style="font-size:11px; color:var(--text-sub);">支持 .json / .zip</div>
+                </div>
+                <input type="file" hidden accept=".json,.zip" onchange="Backup.import(this)">
+                <i class="fa-solid fa-upload"></i>
+            </label>
+            <div class="setting-item" onclick="Backup.clear()" style="color:var(--accent);">
+                <div style="font-weight:700;">清空数据</div>
+                <i class="fa-solid fa-trash"></i>
+            </div>
+        </div>
+
+    </div>
+
+    <nav class="bottom-nav">
+        <button class="nav-item active" onclick="Tabs.switch('view-chars', this, '角色存档')">
+            <svg viewBox="0 0 24 24">
+                <path d="M10 3H4a1 1 0 00-1 1v6a1 1 0 001 1h6a1 1 0 001-1V4a1 1 0 00-1-1zM20 3h-6a1 1 0 00-1 1v6a1 1 0 001 1h6a1 1 0 001-1V4a1 1 0 00-1-1zM10 13H4a1 1 0 00-1 1v6a1 1 0 001 1h6a1 1 0 001-1v-6a1 1 0 00-1-1zM20 13h-6a1 1 0 00-1 1v6a1 1 0 001 1h6a1 1 0 001-1v-6a1 1 0 00-1-1z"/>
+            </svg>
+            <span>存档</span>
+        </button>
+        <button class="nav-item" onclick="Tabs.switch('view-fav', this, '收藏夹')">
+            <svg viewBox="0 0 24 24">
+                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+            </svg>
+            <span>收藏</span>
+        </button>
+        <button class="nav-item" onclick="Tabs.switch('view-settings', this, '系统')">
+            <svg viewBox="0 0 24 24">
+               <path d="M19.43 12.98c.04-.32.07-.64.07-.98s-.03-.66-.07-.98l2.11-1.65c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.3-.61-.22l-2.49 1c-.52-.4-1.08-.73-1.69-.98l-.38-2.65C14.46 2.18 14.25 2 14 2h-4c-.25 0-.46.18-.5.42l-.38 2.65c-.61.25-1.17.59-1.69.98l-2.49-1c-.23-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64l2.11 1.65c-.04.32-.07.65-.07.98s.03.66.07.98l-2.11 1.65c-.19.15-.24.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1c.52.4 1.08.73 1.69.98l.38 2.65c.04.24.25.42.5.42h4c.25 0 .46-.18.5-.42l.38-2.65c.61-.25 1.17-.59 1.69-.98l2.49 1c.23.09.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.65zM12 15.5c-1.93 0-3.5-1.57-3.5-3.5s1.57-3.5 3.5-3.5 3.5 1.57 3.5 3.5-1.57 3.5-3.5 3.5z"/>
+            </svg>
+            <span>设置</span>
+        </button>
+    </nav>
+
+    <div id="modal" class="modal-mask" onclick="Modal.handleMaskClick(event)">
+        <div class="modal-box">
+            <div class="modal-title" id="modal-title">新建角色</div>
+            <input type="hidden" id="inp-id">
+            
+            <div class="upload-circle" onclick="document.getElementById('file-up').click()">
+                <i class="fa-solid fa-camera"></i>
+                <img id="img-prev">
+                <input type="file" id="file-up" hidden accept="image/*" onchange="App.handleImg(this)">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">角色名称 *</label>
+                <input type="text" id="inp-name" class="form-input" placeholder="输入角色名称">
+            </div>
+            <div class="form-group">
+                <label class="form-label">稀有度</label>
+                <select id="inp-rarity" class="form-input">
+                    <option value="">无</option>
+                    <option value="UR">UR - 超稀有</option>
+                    <option value="SSR">SSR - 极稀有</option>
+                    <option value="SR">SR - 稀有</option>
+                    <option value="R">R - 普通</option>
+                    <option value="N">N - 常见</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">分类标签</label>
+                <input type="text" id="inp-tag" class="form-input" placeholder="例如: 游戏, 动漫, 原创">
+            </div>
+            <div class="form-group">
+                <label class="form-label">人设描述</label>
+                <textarea id="inp-persona" class="form-input" placeholder="角色的人设内容..."></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label">备注</label>
+                <input type="text" id="inp-notes" class="form-input" placeholder="备注信息 (可选)">
+            </div>
+
+            <button class="btn-primary" onclick="App.save()">保存</button>
+            <button id="btn-del" class="btn-text" style="color:var(--accent); display:none;" onclick="App.delSingle()">删除此角色</button>
+            <button class="btn-text" onclick="Modal.close()">取消</button>
+        </div>
+    </div>
+
+    <div id="toast" class="toast">操作完成</div>
+
+<script>
+    /* --- 1. IndexedDB --- */
+    const DB_CFG = { name: 'Porcelain_DB', ver: 2, store: 'chars' };
+    const IDB = {
+        db: null,
+        init() {
+            return new Promise((res, rej) => {
+                const req = indexedDB.open(DB_CFG.name, DB_CFG.ver);
+                req.onupgradeneeded = e => {
+                    const db = e.target.result;
+                    if(!db.objectStoreNames.contains(DB_CFG.store)) {
+                        db.createObjectStore(DB_CFG.store, { keyPath: 'id' });
+                    }
+                };
+                req.onsuccess = e => { IDB.db = e.target.result; res(); };
+                req.onerror = e => rej(e);
+            });
+        },
+        op(mode, cb) {
+            return new Promise(res => {
+                const tx = IDB.db.transaction(DB_CFG.store, mode);
+                const req = cb(tx.objectStore(DB_CFG.store));
+                req.onsuccess = e => res(e.target.result);
+            });
+        }
+    };
+
+    /* --- 2. App Logic --- */
+    const App = {
+        data: [],
+        tempImg: null,
+        multiMode: false,
+        selection: new Set(),
+        viewMode: 1, // 0: Gallery, 1: Grid, 2: List
+        viewModes: ['mode-gallery', 'mode-grid', 'mode-list'],
+        viewIcons: ['fa-images', 'fa-grip', 'fa-list'],
+
+        async init() {
+            await IDB.init();
+            App.refresh();
+        },
+
+        async refresh() {
+            App.data = await IDB.op('readonly', s => s.getAll()) || [];
+            // 按 ID 降序排列（最新的在前）
+            App.data.sort((a,b) => b.id - a.id);
+            App.render(App.data, 'char-container');
+            App.render(App.data.filter(i=>i.fav), 'fav-container');
+        },
+
+        // 切换视图模式：Gallery -> Grid -> List -> Loop
+        toggleViewMode() {
+            App.viewMode = (App.viewMode + 1) % 3;
+            const charView = document.getElementById('view-chars');
+            const favView = document.getElementById('view-fav');
+            const btnIcon = document.querySelector('#btn-view i');
+            
+            // 移除旧类，添加新类
+            charView.classList.remove('mode-gallery', 'mode-grid', 'mode-list');
+            charView.classList.add(App.viewModes[App.viewMode]);
+            
+            favView.classList.remove('mode-gallery', 'mode-grid', 'mode-list');
+            favView.classList.add(App.viewModes[App.viewMode]);
+            
+            // 更新按钮图标 - 显示下一个模式的图标
+            btnIcon.className = `fa-solid ${App.viewIcons[(App.viewMode + 1) % 3]}`;
+            
+            Utils.toast(['画廊模式', '网格模式', '列表模式'][App.viewMode]);
+        },
+
+        render(list, domId) {
+            const el = document.getElementById(domId);
+            el.innerHTML = '';
+            el.className = 'content-wrapper';
+
+            if(!list.length) {
+                el.innerHTML = `
+                    <div class="empty-state" style="grid-column: 1/-1;">
+                        <i class="fa-solid fa-ghost"></i>
+                        <p>暂无数据</p>
+                    </div>`;
+                return;
+            }
+
+            list.forEach(item => {
+                const card = document.createElement('div');
+                const isSel = App.selection.has(item.id);
+                card.className = `char-card ${isSel ? 'selected' : ''}`;
+                card.dataset.id = item.id;
+                
+                // 点击卡片
+                card.onclick = (e) => {
+                    // 如果点击的是操作按钮，不处理
+                    if(e.target.closest('.action-circle')) return;
+                    
+                    if(App.multiMode) {
+                        // 多选模式
+                        App.toggleSelection(item.id, card);
+                    } else {
+                        // 普通模式 - 打开编辑
+                        Modal.open(item.id);
+                    }
+                };
+
+                const imgHtml = item.img 
+                    ? `<img src="${item.img}" class="card-img" loading="lazy">` 
+                    : `<div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:#ccc; font-size:32px;"><i class="fa-solid fa-user"></i></div>`;
+
+                // 稀有度标签 - 类似 SSR // 01
+                const rarityClass = item.rarity ? item.rarity.toLowerCase() : '';
+                const rarityHtml = item.rarity 
+                    ? `<span class="rarity-tag ${rarityClass}">${item.rarity} // ${String(item.id).slice(-2)}</span>` 
+                    : '';
+                
+                // 分类标签
+                const tagHtml = item.tag && !item.rarity ? `<span class="char-tag">${item.tag}</span>` : '';
+                
+                // 分类文字（画廊模式信息区显示）
+                const classHtml = item.tag ? `<span class="char-class">${item.tag}</span>` : '';
+                
+                // 备注/描述（画廊模式显示）
+                const descHtml = item.note ? `<p class="char-desc">${item.note}</p>` : '';
+                
+                const nameText = item.name || item.charId || '未命名';
+
+                card.innerHTML = `
+                    <div class="card-actions">
+                        <div class="action-circle fav ${item.fav ? 'active' : ''}" onclick="App.toggleFav(${item.id}, event)">
+                            <i class="fa-${item.fav ? 'solid' : 'regular'} fa-heart"></i>
+                        </div>
+                        <div class="action-circle" onclick="App.copyPersona(${item.id}, event)">
+                            <i class="fa-solid fa-copy"></i>
+                        </div>
+                    </div>
+                    
+                    <div class="select-overlay"><i class="fa-solid fa-circle-check check-circle"></i></div>
+
+                    <div class="card-img-box">
+                        ${rarityHtml || tagHtml}
+                        ${imgHtml}
+                    </div>
+                    <div class="card-info">
+                        <div>
+                            ${classHtml}
+                            <h2 class="char-name">${nameText}</h2>
+                            ${descHtml}
+                        </div>
+                        <div class="deco-line"></div>
+                    </div>
+                `;
+                el.appendChild(card);
+            });
+        },
+
+        toggleSelection(id, card) {
+            if(App.selection.has(id)) {
+                App.selection.delete(id);
+                card.classList.remove('selected');
+            } else {
+                App.selection.add(id);
+                card.classList.add('selected');
+            }
+        },
+
+        handleImg(input) {
+            const f = input.files[0]; if(!f) return;
+            const r = new FileReader();
+            r.onload = e => {
+                const img = new Image();
+                img.onload = () => {
+                    const cvs = document.createElement('canvas');
+                    const ctx = cvs.getContext('2d');
+                    const maxW = 500;
+                    const scale = Math.min(1, maxW / img.width);
+                    const w = img.width * scale;
+                    const h = img.height * scale;
+                    cvs.width = w; cvs.height = h;
+                    ctx.drawImage(img, 0, 0, w, h);
+                    App.tempImg = cvs.toDataURL('image/jpeg', 0.8);
+                    const p = document.getElementById('img-prev');
+                    p.src = App.tempImg; p.style.display = 'block';
+                    document.querySelector('.upload-circle i').style.display = 'none';
+                };
+                img.src = e.target.result;
+            };
+            r.readAsDataURL(f);
+        },
+
+        async save() {
+            const id = document.getElementById('inp-id').value;
+            const name = document.getElementById('inp-name').value.trim();
+            const rarity = document.getElementById('inp-rarity').value;
+            const tag = document.getElementById('inp-tag').value.trim();
+            const persona = document.getElementById('inp-persona').value.trim();
+            const note = document.getElementById('inp-notes').value.trim();
+            
+            if(!name) return Utils.toast('请输入角色名称');
+
+            let item = { 
+                id: id ? Number(id) : Date.now(),
+                name,
+                rarity,
+                tag,
+                persona, 
+                note,
+                img: App.tempImg,
+                fav: false,
+                // 兼容旧字段
+                charId: tag || name
+            };
+
+            if(id) {
+                const old = App.data.find(i => i.id == id);
+                if(old) {
+                    item.fav = old.fav;
+                    if(!item.img) item.img = old.img;
+                }
+            }
+
+            await IDB.op('readwrite', s => s.put(item));
+            App.refresh();
+            Modal.close();
+            Utils.toast('保存成功');
+        },
+
+        async toggleFav(id, e) {
+            e.stopPropagation(); // 阻止冒泡
+            const item = App.data.find(i => i.id == id);
+            if(!item) return;
+            item.fav = !item.fav;
+            await IDB.op('readwrite', s => s.put(item));
+            App.refresh();
+            Utils.toast(item.fav ? '已收藏' : '已取消收藏');
+        },
+
+        copyPersona(id, e) {
+            e.stopPropagation(); // 阻止冒泡
+            const item = App.data.find(i => i.id == id);
+            if(!item) return;
+            const text = item.persona || item.name || '';
+            if(text) {
+                navigator.clipboard.writeText(text).then(() => {
+                    Utils.toast('已复制人设');
+                }).catch(() => {
+                    Utils.toast('复制失败');
+                });
+            } else {
+                Utils.toast('无内容可复制');
+            }
+        },
+
+        async delSingle() {
+            if(!confirm('确定要删除此角色吗？')) return;
+            const id = document.getElementById('inp-id').value;
+            await IDB.op('readwrite', s => s.delete(Number(id)));
+            App.refresh(); 
+            Modal.close();
+            Utils.toast('已删除');
+        },
+
+        toggleMulti() {
+            App.multiMode = !App.multiMode;
+            document.getElementById('btn-multi').classList.toggle('active', App.multiMode);
+            document.getElementById('multi-tools').classList.toggle('show', App.multiMode);
+            
+            if(!App.multiMode) { 
+                App.selection.clear(); 
+                // 移除所有选中状态
+                document.querySelectorAll('.char-card.selected').forEach(c => c.classList.remove('selected'));
+            }
+            
+            Utils.toast(App.multiMode ? '多选模式: 点击卡片选中' : '已退出多选');
+        },
+
+        async deleteMulti() {
+            if(!App.selection.size) {
+                Utils.toast('请先选择要删除的角色');
+                return;
+            }
+            if(!confirm(`确定要删除 ${App.selection.size} 个角色吗？`)) return;
+            
+            for(let id of App.selection) {
+                await IDB.op('readwrite', s => s.delete(id));
+            }
+            App.toggleMulti();
+            App.refresh();
+            Utils.toast('删除成功');
+        },
+
+        toggleSearch() {
+            const bar = document.getElementById('search-bar');
+            bar.classList.toggle('show');
+            if(bar.classList.contains('show')) {
+                bar.querySelector('input').focus();
+            } else {
+                bar.querySelector('input').value = '';
+                App.render(App.data, 'char-container');
+            }
+        },
+
+        renderList(key = '') {
+            if(!key) return App.render(App.data, 'char-container');
+            const k = key.toLowerCase();
+            const filtered = App.data.filter(i => 
+                (i.name && i.name.toLowerCase().includes(k)) ||
+                (i.tag && i.tag.toLowerCase().includes(k)) ||
+                (i.charId && i.charId.toLowerCase().includes(k)) || 
+                (i.persona && i.persona.toLowerCase().includes(k))
+            );
+            App.render(filtered, 'char-container');
+        }
+    };
+
+    /* --- 3. UI Helpers --- */
+    const Modal = {
+        open(id) {
+            const m = document.getElementById('modal');
+            m.style.display = 'flex';
+            setTimeout(() => m.classList.add('open'), 10);
+            
+            App.tempImg = null;
+            document.getElementById('img-prev').style.display = 'none';
+            document.querySelector('.upload-circle i').style.display = 'block';
+            document.getElementById('file-up').value = '';
+
+            if(id) {
+                const i = App.data.find(x => x.id == id);
+                if(!i) return;
+                document.getElementById('modal-title').innerText = '编辑角色';
+                document.getElementById('inp-id').value = i.id;
+                document.getElementById('inp-name').value = i.name || i.charId || '';
+                document.getElementById('inp-rarity').value = i.rarity || '';
+                document.getElementById('inp-tag').value = i.tag || '';
+                document.getElementById('inp-persona').value = i.persona || '';
+                document.getElementById('inp-notes').value = i.note || '';
+                document.getElementById('btn-del').style.display = 'block';
+                if(i.img) {
+                    document.getElementById('img-prev').src = i.img;
+                    document.getElementById('img-prev').style.display = 'block';
+                    document.querySelector('.upload-circle i').style.display = 'none';
+                }
+            } else {
+                document.getElementById('modal-title').innerText = '新建角色';
+                document.getElementById('inp-id').value = '';
+                document.getElementById('inp-name').value = '';
+                document.getElementById('inp-rarity').value = '';
+                document.getElementById('inp-tag').value = '';
+                document.getElementById('inp-persona').value = '';
+                document.getElementById('inp-notes').value = '';
+                document.getElementById('btn-del').style.display = 'none';
+            }
+        },
+        close() {
+            const m = document.getElementById('modal');
+            m.classList.remove('open');
+            setTimeout(() => m.style.display = 'none', 300);
+        },
+        handleMaskClick(e) {
+            if(e.target === document.getElementById('modal')) {
+                Modal.close();
+            }
+        }
+    };
+
+    const Tabs = {
+        switch(vid, btn, title) {
+            document.querySelectorAll('.view-section').forEach(e => e.classList.remove('active'));
+            const targetView = document.getElementById(vid);
+            targetView.classList.add('active');
+            
+            // 同步视图模式类
+            targetView.classList.remove('mode-gallery', 'mode-grid', 'mode-list');
+            targetView.classList.add(App.viewModes[App.viewMode]);
+            
+            document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('page-title').innerText = title;
+            
+            // 视图切换按钮只在角色页和收藏页显示
+            document.getElementById('btn-view').style.display = (vid === 'view-chars' || vid === 'view-fav') ? 'flex' : 'none';
+            
+            // 多选按钮只在角色页显示
+            document.getElementById('btn-multi').style.display = (vid === 'view-chars') ? 'flex' : 'none';
+            
+            // 如果离开角色页，退出多选模式
+            if(vid !== 'view-chars' && App.multiMode) {
+                App.toggleMulti();
+            }
+        }
+    };
+
+    const Utils = {
+        toast(msg) {
+            const t = document.getElementById('toast');
+            t.innerText = msg; 
+            t.style.opacity = 1;
+            setTimeout(() => t.style.opacity = 0, 2000);
+        }
+    };
+
+    const Backup = {
+        async export() {
+            Utils.toast('正在打包数据...');
+            const zip = new JSZip();
+            const imgF = zip.folder('images');
+            const list = [];
+            
+            App.data.forEach(item => {
+                let copy = {...item};
+                if(item.img && item.img.startsWith('data:image')) {
+                    const b64 = item.img.split(',')[1];
+                    imgF.file(`${item.id}.jpg`, b64, {base64:true});
+                    copy.img = `images/${item.id}.jpg`;
+                }
+                list.push(copy);
+            });
+            zip.file('data.json', JSON.stringify(list, null, 2));
+            
+            const blob = await zip.generateAsync({type:'blob'});
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            const date = new Date().toISOString().slice(0,10);
+            a.download = `CharArchive_${date}.zip`;
+            a.click();
+            Utils.toast('下载开始');
+        },
+
+        async import(input) {
+            const f = input.files[0]; 
+            if(!f) return;
+            
+            if(f.name.endsWith('.zip')) {
+                // ZIP 导入
+                try {
+                    const zip = await JSZip.loadAsync(f);
+                    const dataFile = zip.file('data.json');
+                    if(!dataFile) {
+                        Utils.toast('ZIP 格式错误');
+                        return;
+                    }
+                    const jsonStr = await dataFile.async('string');
+                    const json = JSON.parse(jsonStr);
+                    
+                    if(!confirm(`导入 ${json.length} 个角色，将覆盖现有数据？`)) return;
+                    
+                    for(let item of json) {
+                        // 恢复图片
+                        if(item.img && item.img.startsWith('images/')) {
+                            const imgFile = zip.file(item.img);
+                            if(imgFile) {
+                                const b64 = await imgFile.async('base64');
+                                item.img = 'data:image/jpeg;base64,' + b64;
+                            } else {
+                                item.img = null;
+                            }
+                        }
+                        await IDB.op('readwrite', s => s.put(item));
+                    }
+                    App.refresh();
+                    Utils.toast('导入成功');
+                } catch(err) {
+                    console.error(err);
+                    Utils.toast('导入失败');
+                }
+            } else {
+                // JSON 导入
+                const r = new FileReader();
+                r.onload = async e => {
+                    try {
+                        const json = JSON.parse(e.target.result);
+                        if(!confirm(`导入 ${json.length} 个角色，将覆盖现有数据？`)) return;
+                        for(let i of json) {
+                            if(i.img && !i.img.startsWith('data:')) i.img = null;
+                            await IDB.op('readwrite', s => s.put(i));
+                        }
+                        App.refresh();
+                        Utils.toast('导入成功');
+                    } catch(err) { 
+                        Utils.toast('格式错误'); 
+                    }
+                };
+                r.readAsText(f);
+            }
+            input.value = '';
+        },
+
+        async clear() {
+            if(confirm('确定要清空所有数据吗？此操作不可恢复！')) {
+                await IDB.op('readwrite', s => s.clear());
+                App.refresh();
+                Utils.toast('数据已清空');
+            }
+        }
+    };
+
+    window.onload = App.init;
+</script>
+</body>
+</html>
