@@ -37,17 +37,15 @@
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; user-select: none; }
         
         body {
-            margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Arial", sans-serif;
+            margin: 0; 
+            font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Arial", sans-serif;
             background-color: var(--bg-color);
             color: var(--text-main);
-            height: 100dvh; 
+            height: 100vh;
+            height: 100dvh;
             display: flex; 
             flex-direction: column; 
             overflow: hidden;
-            position: fixed;
-            width: 100%;
-            top: 0;
-            left: 0;
         }
 
         /* 背景装饰 */
@@ -58,8 +56,8 @@
 
         /* === 2. 顶部 Header === */
         .header {
-            padding: calc(10px + var(--safe-top)) 24px 10px;
-            height: calc(var(--header-h) + var(--safe-top));
+            padding: calc(10px + env(safe-area-inset-top)) 24px 10px;
+            min-height: calc(var(--header-h) + env(safe-area-inset-top));
             display: flex; justify-content: space-between; align-items: flex-end;
             z-index: 50; flex-shrink: 0;
             background: linear-gradient(to bottom, rgba(242,244,246,0.95), rgba(242,244,246,0));
@@ -91,8 +89,7 @@
         .view-section {
             position: absolute; 
             inset: 0;
-            padding: 10px 24px;
-            padding-bottom: calc(80px + var(--safe-bottom)); /* 底部留白给固定导航栏 */
+            padding: 10px 24px 16px;
             overflow-y: auto; 
             overflow-x: hidden;
             -webkit-overflow-scrolling: touch;
@@ -127,7 +124,6 @@
             overflow-y: visible;
             scroll-snap-type: x mandatory;
             padding: 40px 30px;
-            padding-bottom: calc(90px + var(--safe-bottom));
             min-height: 100%;
             align-items: center;
             -ms-overflow-style: none;
@@ -391,20 +387,16 @@
 
         /* === 6. 底部导航栏 (Fixed Bottom Nav with Blur) === */
         .bottom-nav {
-            position: fixed; 
-            bottom: 0;
-            left: 0;
-            right: 0;
-            z-index: 100;
             background: rgba(255, 255, 255, 0.85);
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
             border-top: 1px solid rgba(0, 0, 0, 0.05);
             padding-top: 10px;
-            padding-bottom: calc(var(--safe-bottom) + 5px);
+            padding-bottom: calc(env(safe-area-inset-bottom) + 5px);
             display: flex;
             justify-content: space-around;
             align-items: flex-start;
+            flex-shrink: 0;
         }
         .nav-item {
             display: flex; 
